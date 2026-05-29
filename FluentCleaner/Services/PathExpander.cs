@@ -69,12 +69,11 @@ public class PathExpander
     // installed under Program Files (x86).
     public List<string> ResolvePaths(string rawPath)
     {
-        var results = new List<string>();
+        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Always resolve the primary path.
         ResolveRecursive(ExpandVariables(rawPath), results);
 
-        //!Fixed!---------------------------
         // If the path references %ProgramFiles%, also try %ProgramFiles(x86)%.
         // Use a HashSet to avoid duplicate results when both point to the same dir (32-bit OS).
         if (rawPath.Contains("%ProgramFiles%", StringComparison.OrdinalIgnoreCase))
@@ -82,14 +81,12 @@ public class PathExpander
             var x86Path = rawPath.Replace("%ProgramFiles%", "%ProgramFiles(x86)%",
                                           StringComparison.OrdinalIgnoreCase);
             var expanded = ExpandVariables(x86Path);
-            if (!results.Contains(expanded))
-                ResolveRecursive(expanded, results);
+            ResolveRecursive(expanded, results);
         }
-        //---------------------------
-        return results;
+        return results.ToList();
     }
 
-    private static void ResolveRecursive(string path, List<string> results)
+    private static void ResolveRecursive(string path, HashSet<string> results)
     {
         var parts = path.Split(new[] { '\\', '/' }, StringSplitOptions.None);
 
