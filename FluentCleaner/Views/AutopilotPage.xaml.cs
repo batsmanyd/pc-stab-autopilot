@@ -16,38 +16,42 @@ public sealed partial class AutopilotPage : Page
     private async Task RefreshStatusAsync()
     {
         var enabled = await AutopilotScheduler.IsEnabledAsync();
-        StatusText.Text = enabled ? "Daily autopilot is enabled." : "Daily autopilot is disabled.";
+        StatusText.Text = enabled ? "Автопилот включён. Ежедневная проверка активна." : "Автопилот выключен. Можно проверить ПК вручную.";
 
-        if (AppSettings.Instance.LastAutopilotRun is { } lastRun)
-            LastRunText.Text = lastRun.ToString("yyyy-MM-dd HH:mm:ss");
-        else
-            LastRunText.Text = "Not run yet";
+        LastRunText.Text = AppSettings.Instance.LastAutopilotRun is { } lastRun
+            ? lastRun.ToString("yyyy-MM-dd HH:mm:ss")
+            : "Пока не выполнялась";
 
         TempText.Text = AppSettings.Instance.LastAutopilotTempBytes > 0
             ? AutopilotRunner.FormatBytes(AppSettings.Instance.LastAutopilotTempBytes)
             : "—";
 
         WarningsText.Text = AppSettings.Instance.LastAutopilotWarnings > 0
-            ? AppSettings.Instance.LastAutopilotWarnings.ToString()
-            : "No critical warnings";
+            ? $"Предупреждений: {AppSettings.Instance.LastAutopilotWarnings}"
+            : "Критичных предупреждений нет";
     }
 
     private async void RunNow_Click(object sender, RoutedEventArgs e)
     {
         RunNowButton.IsEnabled = false;
-        StatusText.Text = "Checking PC...";
+        StatusText.Text = "Проверяю ПК...";
 
         try
         {
             var result = await AutopilotRunner.RunAsync();
             LastRunText.Text = result.RunAt.ToString("yyyy-MM-dd HH:mm:ss");
+            DiskText.Text = $"Свободно {AutopilotRunner.FormatBytes(result.DriveCFreeBytes)} из {AutopilotRunner.FormatBytes(result.DriveCTotalBytes)}\nЗанято {result.DriveCUsedPercent}%";
+            CpuText.Text = result.CpuName;
+            RamText.Text = $"Занято {result.RamUsedPercent}%\nСвободно {result.RamFreeGb} GB из {result.RamTotalGb} GB";
             TempText.Text = AutopilotRunner.FormatBytes(result.TempBytes);
+            SecurityText.Text = $"Defender: {result.DefenderStatus}\nFirewall: {result.FirewallStatus}";
+            ErrorsText.Text = $"Автозагрузка: {result.StartupCount}\nОшибки System за 7 дней: {result.SystemErrors7Days}";
             WarningsText.Text = string.Join(Environment.NewLine, result.Warnings);
-            StatusText.Text = "Check completed. Report created.";
+            StatusText.Text = "ПК проверен. Отчёт создан.";
         }
         catch (Exception ex)
         {
-            StatusText.Text = "Error: " + ex.Message;
+            StatusText.Text = "Ошибка: " + ex.Message;
         }
         finally
         {
@@ -63,7 +67,7 @@ public sealed partial class AutopilotPage : Page
             var ok = await AutopilotScheduler.EnableDailyAsync(AppSettings.Instance.AutopilotHour);
             AppSettings.Instance.AutopilotEnabled = ok;
             AppSettings.Instance.Save();
-            StatusText.Text = ok ? "Daily autopilot enabled." : "Could not enable daily autopilot.";
+            StatusText.Text = ok ? "Автопилот включён. Проверка каждый день в 11:00." : "Не удалось включить автопилот.";
         }
         finally
         {
@@ -80,7 +84,7 @@ public sealed partial class AutopilotPage : Page
             var ok = await AutopilotScheduler.DisableAsync();
             AppSettings.Instance.AutopilotEnabled = false;
             AppSettings.Instance.Save();
-            StatusText.Text = ok ? "Daily autopilot disabled." : "Could not disable daily autopilot.";
+            StatusText.Text = ok ? "Автопилот выключен." : "Не удалось выключить автопилот.";
         }
         finally
         {
