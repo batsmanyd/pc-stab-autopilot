@@ -2,7 +2,7 @@
     x:Class="FluentCleaner.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="FluentCleaner">
+    Title="PC Штаб Автопилот">
 
     <Window.SystemBackdrop>
         <MicaBackdrop />
@@ -16,8 +16,8 @@
 
         <TitleBar x:Name="AppTitleBar"
                   Grid.Row="0"
-                  Title="FluentCleaner"
-                  Subtitle="{x:Bind InsiderSubtitle}"
+                  Title="PC Штаб Автопилот"
+                  Subtitle=""
                   IsPaneToggleButtonVisible="True"
                   PaneToggleRequested="TitleBar_PaneToggleRequested">
             <TitleBar.IconSource>
@@ -31,7 +31,7 @@
                         MaxWidth="280"
                         Width="280"
                         VerticalAlignment="Center"
-                        PlaceholderText="Search"
+                        PlaceholderText="Поиск"
                         QueryIcon="Find"
                         TextChanged="TitleSearchBox_TextChanged" />
 
@@ -42,12 +42,12 @@
                         Visibility="Collapsed"
                         Background="Transparent"
                         BorderThickness="0"
-                        ToolTipService.ToolTip="Search">
+                        ToolTipService.ToolTip="Поиск">
                         <FontIcon Glyph="&#xE721;" FontSize="15" />
                         <Button.Flyout>
                             <Flyout Placement="Bottom">
                                 <AutoSuggestBox Width="280"
-                                    PlaceholderText="Search…"
+                                    PlaceholderText="Поиск"
                                     QueryIcon="Find"
                                     TextChanged="TitleSearchBox_TextChanged" />
                             </Flyout>
@@ -57,19 +57,10 @@
             </TitleBar.Content>
 
             <TitleBar.RightHeader>
-                <Button x:Name="BtnPageActions" Width="32" Height="32" Padding="0"
-                        ToolTipService.ToolTip="Page actions">
-                    <Button.Resources>
-                        <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
-                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent" />
-                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="Transparent" />
-                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
-                    </Button.Resources>
+                <Button x:Name="BtnPageActions" Width="32" Height="32" Padding="0" Visibility="Collapsed">
                     <FontIcon Glyph="&#xE712;" FontSize="14" />
                     <Button.Flyout>
-                        <MenuFlyout x:Name="PageActionsFlyout"
-                                    Placement="BottomEdgeAlignedRight"
-                                    Opening="PageActionsFlyout_Opening" />
+                        <MenuFlyout x:Name="PageActionsFlyout" Opening="PageActionsFlyout_Opening" />
                     </Button.Flyout>
                 </Button>
             </TitleBar.RightHeader>
@@ -86,24 +77,14 @@
                         SelectionChanged="NavView_SelectionChangedWithAutopilot">
 
             <NavigationView.MenuItems>
-                <NavigationViewItem Tag="Cleaner" Content="Cleaner" IsSelected="True">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xEA99;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Tag="Autopilot" Content="Autopilot">
+                <NavigationViewItem Tag="Autopilot" Content="Автопилот" IsSelected="True">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE7C1;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Tag="Terminal" Content="Terminal">
+                <NavigationViewItem Tag="Cleaner" Content="Очистка вручную">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE943;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Tag="Custom" Content="Custom">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE710;" />
+                        <FontIcon Glyph="&#xEA99;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
@@ -111,28 +92,6 @@
             <Frame x:Name="NavFrame" />
         </NavigationView>
 
-        <TeachingTip x:Name="DonationTip"
-                     Target="{x:Bind BtnPageActions}"
-                     Title="Enjoying FluentCleaner?"
-                     Subtitle="If this app saves you time, consider supporting its development."
-                     PreferredPlacement="BottomLeft"
-                     IsLightDismissEnabled="False">
-            <TeachingTip.Content>
-                <StackPanel Spacing="6" Margin="0,4,0,0">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="PayPal" Click="DonationTip_PayPal"
-                                Style="{StaticResource AccentButtonStyle}" />
-                        <Button Content="Ko-fi" Click="DonationTip_KoFi" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <HyperlinkButton Content="Star on GitHub" Click="DonationTip_Star"
-                                         Padding="0" FontSize="12" />
-                        <HyperlinkButton Content="Maybe later" Click="DonationTip_Dismiss"
-                                         Padding="0" FontSize="12"
-                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    </StackPanel>
-                </StackPanel>
-            </TeachingTip.Content>
-        </TeachingTip>
+        <TeachingTip x:Name="DonationTip" Target="{x:Bind BtnPageActions}" IsOpen="False" Title="" Subtitle="" />
     </Grid>
 </Window>
