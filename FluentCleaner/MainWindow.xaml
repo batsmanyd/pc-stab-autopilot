@@ -14,7 +14,6 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Native TitleBar:icon + title left, search center, [...] right -->
         <TitleBar x:Name="AppTitleBar"
                   Grid.Row="0"
                   Title="FluentCleaner"
@@ -25,10 +24,8 @@
                 <ImageIconSource ImageSource="Assets/AppIcon.ico" />
             </TitleBar.IconSource>
 
-
             <TitleBar.Content>
                 <Grid>
-                    <!-- Full search -->
                     <AutoSuggestBox x:Name="TitleSearchBox"
                         MinWidth="160"
                         MaxWidth="280"
@@ -38,7 +35,6 @@
                         QueryIcon="Find"
                         TextChanged="TitleSearchBox_TextChanged" />
 
-                    <!-- Compact search icon -->
                     <Button x:Name="SearchIconButton"
                         Width="32"
                         Height="32"
@@ -47,9 +43,7 @@
                         Background="Transparent"
                         BorderThickness="0"
                         ToolTipService.ToolTip="Search">
-
-                        <FontIcon Glyph="&#xE721;"
-                            FontSize="15" />
+                        <FontIcon Glyph="&#xE721;" FontSize="15" />
                         <Button.Flyout>
                             <Flyout Placement="Bottom">
                                 <AutoSuggestBox Width="280"
@@ -66,10 +60,10 @@
                 <Button x:Name="BtnPageActions" Width="32" Height="32" Padding="0"
                         ToolTipService.ToolTip="Page actions">
                     <Button.Resources>
-                        <SolidColorBrush x:Key="ButtonBackground"             Color="Transparent" />
-                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver"  Color="Transparent" />
-                        <SolidColorBrush x:Key="ButtonBackgroundPressed"      Color="Transparent" />
-                        <SolidColorBrush x:Key="ButtonBorderBrush"            Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
                     </Button.Resources>
                     <FontIcon Glyph="&#xE712;" FontSize="14" />
                     <Button.Flyout>
@@ -81,7 +75,6 @@
             </TitleBar.RightHeader>
         </TitleBar>
 
-        <!-- NavView sits below TitleBar; IsTitleBarAutoPaddingEnabled=False avoids double padding -->
         <NavigationView x:Name="NavView"
                         Grid.Row="1"
                         PaneDisplayMode="LeftCompact"
@@ -90,7 +83,7 @@
                         IsPaneToggleButtonVisible="False"
                         CompactPaneLength="48"
                         OpenPaneLength="240"
-                        SelectionChanged="NavView_SelectionChanged">
+                        SelectionChanged="NavView_SelectionChangedWithAutopilot">
 
             <NavigationView.MenuItems>
                 <NavigationViewItem Tag="Cleaner" Content="Cleaner" IsSelected="True">
@@ -117,7 +110,7 @@
 
             <Frame x:Name="NavFrame" />
         </NavigationView>
-        <!-- donation prompt; anchored to the [...] button -->
+
         <TeachingTip x:Name="DonationTip"
                      Target="{x:Bind BtnPageActions}"
                      Title="Enjoying FluentCleaner?"
