@@ -98,6 +98,11 @@
                         <FontIcon Glyph="&#xEA99;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Tag="Autopilot" Content="Autopilot">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7C1;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem Tag="Terminal" Content="Terminal">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE943;" />
