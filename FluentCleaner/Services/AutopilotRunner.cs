@@ -1,4 +1,7 @@
 using Microsoft.UI.Xaml;
+using Microsoft.Win32;
+using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -10,10 +13,17 @@ public sealed class AutopilotRunResult
     public string Windows { get; set; } = Environment.OSVersion.VersionString;
     public string ComputerName { get; set; } = Environment.MachineName;
     public string UserName { get; set; } = Environment.UserName;
+    public string CpuName { get; set; } = "Не прочитано";
+    public double RamTotalGb { get; set; }
+    public double RamFreeGb { get; set; }
+    public double RamUsedPercent { get; set; }
     public long DriveCTotalBytes { get; set; }
     public long DriveCFreeBytes { get; set; }
     public double DriveCUsedPercent { get; set; }
     public long TempBytes { get; set; }
+    public string DefenderStatus { get; set; } = "Не прочитано";
+    public string FirewallStatus { get; set; } = "Не прочитано";
+    public int StartupCount { get; set; }
     public int SystemErrors7Days { get; set; }
     public List<string> Warnings { get; set; } = [];
     public string TxtReportPath { get; set; } = "";
@@ -36,12 +46,13 @@ public static class AutopilotRunner
         await Task.Run(() =>
         {
             ReadDriveC(result);
+            ReadSystemInfo(result);
             result.TempBytes = GetFolderSizeSafe(Path.GetTempPath()) +
                                GetFolderSizeSafe(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp"));
-
-            // MVP: event log parsing is disabled to avoid extra runtime packages.
-            // We will add System log reading after the Autopilot screen is stable.
-            result.SystemErrors7Days = 0;
+            result.StartupCount = CountStartupItems();
+            result.DefenderStatus = ReadPowerShell("try { if((Get-MpComputerStatus).RealTimeProtectionEnabled){'Включена'}else{'Выключена'} } catch {'Не прочитано'}");
+            result.FirewallStatus = ReadPowerShell("try { $off=(Get-NetFirewallProfile | Where-Object { -not $_.Enabled }).Count; if($off -eq 0){'Включён'}else{'Есть отключённые профили'} } catch {'Не прочитано'}");
+            result.SystemErrors7Days = ParseInt(ReadPowerShell("try { (Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=(Get-Date).AddDays(-7)} -ErrorAction SilentlyContinue | Measure-Object).Count } catch { 0 }"));
 
             BuildWarnings(result);
             WriteReports(result);
@@ -72,6 +83,19 @@ public static class AutopilotRunner
         catch { }
     }
 
+    private static void ReadSystemInfo(AutopilotRunResult result)
+    {
+        result.CpuName = ReadPowerShell("try { (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name).Trim() } catch { 'Не прочитано' }");
+        var ram = ReadPowerShell("try { $os=Get-CimInstance Win32_OperatingSystem; '{0}|{1}' -f ([int64]$os.TotalVisibleMemorySize*1024),([int64]$os.FreePhysicalMemory*1024) } catch { '0|0' }");
+        var parts = ram.Split('|');
+        if (parts.Length == 2 && long.TryParse(parts[0], out var total) && long.TryParse(parts[1], out var free) && total > 0)
+        {
+            result.RamTotalGb = Math.Round(total / 1024d / 1024d / 1024d, 1);
+            result.RamFreeGb = Math.Round(free / 1024d / 1024d / 1024d, 1);
+            result.RamUsedPercent = Math.Round((total - free) * 100d / total, 1);
+        }
+    }
+
     private static long GetFolderSizeSafe(string path)
     {
         long total = 0;
@@ -88,6 +112,57 @@ public static class AutopilotRunner
         return total;
     }
 
+    private static int CountStartupItems()
+    {
+        var count = 0;
+        try { count += Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")?.GetValueNames().Length ?? 0; } catch { }
+        try { count += Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")?.GetValueNames().Length ?? 0; } catch { }
+        try { count += Registry.LocalMachine.OpenSubKey(@"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run")?.GetValueNames().Length ?? 0; } catch { }
+        try
+        {
+            var userStartup = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+            if (Directory.Exists(userStartup)) count += Directory.GetFiles(userStartup).Length;
+        }
+        catch { }
+        try
+        {
+            var commonStartup = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+            if (Directory.Exists(commonStartup)) count += Directory.GetFiles(commonStartup).Length;
+        }
+        catch { }
+        return count;
+    }
+
+    private static string ReadPowerShell(string command)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"" + command.Replace("\"", "\\\"") + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8
+            });
+            if (process is null) return "";
+            if (!process.WaitForExit(12000))
+            {
+                try { process.Kill(); } catch { }
+                return "";
+            }
+            return process.StandardOutput.ReadToEnd().Trim();
+        }
+        catch { return ""; }
+    }
+
+    private static int ParseInt(string value)
+    {
+        return int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+    }
+
     private static void BuildWarnings(AutopilotRunResult result)
     {
         if (result.DriveCFreeBytes > 0 && result.DriveCFreeBytes < 25L * 1024 * 1024 * 1024)
@@ -96,8 +171,14 @@ public static class AutopilotRunner
         if (result.DriveCUsedPercent >= 85)
             result.Warnings.Add($"Диск C заполнен на {result.DriveCUsedPercent}%");
 
+        if (result.RamUsedPercent >= 85)
+            result.Warnings.Add($"Высокая загрузка RAM: {result.RamUsedPercent}%");
+
         if (result.SystemErrors7Days > 20)
             result.Warnings.Add($"Много ошибок System за 7 дней: {result.SystemErrors7Days}");
+
+        if (result.DefenderStatus.Contains("Выключена", StringComparison.OrdinalIgnoreCase))
+            result.Warnings.Add("Защита Windows Defender выключена");
 
         if (result.Warnings.Count == 0)
             result.Warnings.Add("Критичных предупреждений нет");
@@ -114,21 +195,27 @@ public static class AutopilotRunner
         PC Штаб Автопилот — отчёт
         Дата: {{result.RunAt:yyyy-MM-dd HH:mm:ss}}
 
-        Режим MVP: наблюдение и отчёты.
-        На этом этапе программа ничего не удаляет и не меняет.
+        Режим: автоматический контроль и отчёты.
+        Опасные действия отключены: реестр, службы, драйверы, программы и личные файлы не трогаются.
 
         ПК:
         Windows: {{result.Windows}}
         Компьютер: {{result.ComputerName}}
         Пользователь: {{result.UserName}}
+        CPU: {{result.CpuName}}
+        RAM: занято {{result.RamUsedPercent}}%, свободно {{result.RamFreeGb}} GB из {{result.RamTotalGb}} GB
 
         Диск C:
         Свободно: {{FormatBytes(result.DriveCFreeBytes)}}
         Всего: {{FormatBytes(result.DriveCTotalBytes)}}
         Занято: {{result.DriveCUsedPercent}}%
 
+        Обслуживание:
         Временные файлы, расчёт: {{FormatBytes(result.TempBytes)}}
-        Ошибки System за 7 дней: будет добавлено следующим шагом
+        Автозагрузка: {{result.StartupCount}}
+        Defender: {{result.DefenderStatus}}
+        Firewall: {{result.FirewallStatus}}
+        Ошибки System за 7 дней: {{result.SystemErrors7Days}}
 
         Предупреждения:
         {{warnings}}
