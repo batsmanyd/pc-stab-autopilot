@@ -4,64 +4,60 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <ScrollViewer>
-        <StackPanel Padding="32" Spacing="18" MaxWidth="920" HorizontalAlignment="Left">
-            <TextBlock Text="PC Stab Autopilot"
-                       FontSize="32"
-                       FontWeight="SemiBold" />
+        <StackPanel Padding="32" Spacing="18" MaxWidth="1040" HorizontalAlignment="Left">
+            <TextBlock Text="PC Штаб Автопилот" FontSize="34" FontWeight="SemiBold" />
+            <TextBlock Text="Поставил один раз — программа сама проверяет ПК, ведёт отчёты и предупреждает о проблемах." TextWrapping="Wrap" Opacity="0.8" />
 
-            <TextBlock Text="Automatic PC check, scheduled reports, and simple status for normal users."
-                       TextWrapping="Wrap"
-                       Opacity="0.8" />
-
-            <InfoBar IsOpen="True"
-                     Severity="Informational"
-                     Title="MVP mode"
-                     Message="This first autopilot screen checks the PC and creates reports. System changes are not performed in this mode." />
+            <InfoBar IsOpen="True" Severity="Success" Title="Безопасный режим" Message="Автопилот не чистит реестр, не отключает службы, не удаляет программы, драйверы и личные файлы." />
 
             <Grid ColumnSpacing="16" RowSpacing="16">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Grid.Column="0" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Status" FontWeight="SemiBold" />
-                        <TextBlock x:Name="StatusText" Text="Waiting" TextWrapping="Wrap" />
-                    </StackPanel>
+                    <StackPanel Spacing="8"><TextBlock Text="Статус" FontWeight="SemiBold" /><TextBlock x:Name="StatusText" Text="Ожидает проверки" TextWrapping="Wrap" /></StackPanel>
                 </Border>
-
                 <Border Grid.Row="0" Grid.Column="1" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Last check" FontWeight="SemiBold" />
-                        <TextBlock x:Name="LastRunText" Text="Not run yet" TextWrapping="Wrap" />
-                    </StackPanel>
+                    <StackPanel Spacing="8"><TextBlock Text="Последняя проверка" FontWeight="SemiBold" /><TextBlock x:Name="LastRunText" Text="Пока не выполнялась" TextWrapping="Wrap" /></StackPanel>
+                </Border>
+                <Border Grid.Row="0" Grid.Column="2" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8"><TextBlock Text="Диск C" FontWeight="SemiBold" /><TextBlock x:Name="DiskText" Text="—" TextWrapping="Wrap" /></StackPanel>
                 </Border>
 
                 <Border Grid.Row="1" Grid.Column="0" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Temporary files" FontWeight="SemiBold" />
-                        <TextBlock x:Name="TempText" Text="—" TextWrapping="Wrap" />
-                    </StackPanel>
+                    <StackPanel Spacing="8"><TextBlock Text="CPU" FontWeight="SemiBold" /><TextBlock x:Name="CpuText" Text="—" TextWrapping="Wrap" /></StackPanel>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="1" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8"><TextBlock Text="RAM" FontWeight="SemiBold" /><TextBlock x:Name="RamText" Text="—" TextWrapping="Wrap" /></StackPanel>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="2" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8"><TextBlock Text="Временные файлы" FontWeight="SemiBold" /><TextBlock x:Name="TempText" Text="—" TextWrapping="Wrap" /></StackPanel>
                 </Border>
 
-                <Border Grid.Row="1" Grid.Column="1" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Warnings" FontWeight="SemiBold" />
-                        <TextBlock x:Name="WarningsText" Text="—" TextWrapping="Wrap" />
-                    </StackPanel>
+                <Border Grid.Row="2" Grid.Column="0" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8"><TextBlock Text="Защита" FontWeight="SemiBold" /><TextBlock x:Name="SecurityText" Text="—" TextWrapping="Wrap" /></StackPanel>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="1" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8"><TextBlock Text="Автозагрузка и ошибки" FontWeight="SemiBold" /><TextBlock x:Name="ErrorsText" Text="—" TextWrapping="Wrap" /></StackPanel>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="2" Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8"><TextBlock Text="Предупреждения" FontWeight="SemiBold" /><TextBlock x:Name="WarningsText" Text="—" TextWrapping="Wrap" /></StackPanel>
                 </Border>
             </Grid>
 
             <StackPanel Orientation="Horizontal" Spacing="12">
-                <Button x:Name="RunNowButton" Content="Run check now" Click="RunNow_Click" />
-                <Button x:Name="EnableButton" Content="Enable daily autopilot" Click="Enable_Click" />
-                <Button x:Name="DisableButton" Content="Disable autopilot" Click="Disable_Click" />
-                <Button Content="Open reports" Click="OpenReports_Click" />
+                <Button x:Name="RunNowButton" Content="Проверить сейчас" Click="RunNow_Click" />
+                <Button x:Name="EnableButton" Content="Включить автопилот" Click="Enable_Click" />
+                <Button x:Name="DisableButton" Content="Выключить автопилот" Click="Disable_Click" />
+                <Button Content="Открыть отчёты" Click="OpenReports_Click" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
