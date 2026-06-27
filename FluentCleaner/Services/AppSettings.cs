@@ -36,6 +36,18 @@ public class AppSettings
     public bool   PostCleanEnabled  { get; set; } = false;
     public string PostCleanCommands { get; set; } = "";
 
+    // Autopilot MVP settings
+    public bool AutopilotEnabled { get; set; } = false;
+    public string AutopilotMode { get; set; } = "Observe";
+    public int AutopilotHour { get; set; } = 11;
+    public int SafeCleanOlderThanDays { get; set; } = 7;
+    public bool SafeCleanUserTemp { get; set; } = true;
+    public bool SafeCleanWindowsTemp { get; set; } = true;
+    public bool SafeCleanExplorerThumbCache { get; set; } = false;
+    public DateTime? LastAutopilotRun { get; set; }
+    public long LastAutopilotTempBytes { get; set; }
+    public int LastAutopilotWarnings { get; set; }
+
     // backdrop style;terminal-only tweak, no Settings UI on purpose
     public string Backdrop { get; set; } = "mica";
 
