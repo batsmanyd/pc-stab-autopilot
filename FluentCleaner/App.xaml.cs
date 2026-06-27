@@ -16,13 +16,10 @@ public partial class App : Application
         InitializeComponent();
     }
 
-    //Entry point;load settings, build the window, wire everything up.
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-
         AppSettings.Reload();
 
-        // SilentRunner headless clean, no window; /SHUTDOWN shuts down after
         var cmdArgs = Environment.GetCommandLineArgs();
         bool isAuto      = cmdArgs.Any(a => a.Equals("/AUTO",      StringComparison.OrdinalIgnoreCase));
         bool isAutopilot = cmdArgs.Any(a => a.Equals("/AUTOPILOT", StringComparison.OrdinalIgnoreCase));
@@ -30,7 +27,7 @@ public partial class App : Application
 
         if (isAutopilot)
         {
-            _ = AutopilotRunner.RunAsync(exitAfterRun: true);
+            _ = AutopilotRunner.RunAsync(exitAfterRun: true, safeClean: true);
             return;
         }
 
@@ -47,7 +44,6 @@ public partial class App : Application
         ApplyTheme(AppSettings.Instance.Theme);
         MainWindow.Activate();
 
-        //Remember size for next launch
         MainWindow.Closed += (_, _) =>
         {
             var size = MainWindow.AppWindow.Size;
@@ -56,11 +52,7 @@ public partial class App : Application
             AppSettings.Instance.Save();
         };
     }
-    // idea from John Gage Faulkner's WinUI3SampleStarterApp
-    // https://github.com/johngagefaulkner/WinUI3SampleStarterApp
-    // remove idle background only;so it lets TitleBar blend with Mica
-    // don't touch hover/pressed, PreferredTheme handles it
-    // overriding all states breaks hover (learned that the hard way)
+
     private void SetupTitleBar()
     {
         if (AppWindowTitleBar.IsCustomizationSupported())
@@ -71,7 +63,6 @@ public partial class App : Application
         }
     }
 
-    //Picks up the saved size from settings, falls back to 960x620 on first run
     private void RestoreWindowSize()
     {
         var w = AppSettings.Instance.WindowWidth;
@@ -87,7 +78,6 @@ public partial class App : Application
         }
     }
 
-    // Switches light/dark/system 
     public void ApplyTheme(string? theme)
     {
         var elementTheme = theme switch
@@ -110,7 +100,6 @@ public partial class App : Application
         };
     }
 
-    // Mica by default, acrylic if the user set it via terminal. No Settings UI for this on purpose
     public void ApplyBackdrop(string? backdrop)
     {
         if (MainWindow is null) return;
