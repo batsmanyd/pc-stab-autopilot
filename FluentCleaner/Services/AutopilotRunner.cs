@@ -50,8 +50,8 @@ public static class AutopilotRunner
             result.TempBytes = GetFolderSizeSafe(Path.GetTempPath()) +
                                GetFolderSizeSafe(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp"));
             result.StartupCount = CountStartupItems();
-            result.DefenderStatus = ReadPowerShell("try { if((Get-MpComputerStatus).RealTimeProtectionEnabled){'Включена'}else{'Выключена'} } catch {'Не прочитано'}");
-            result.FirewallStatus = ReadPowerShell("try { $off=(Get-NetFirewallProfile | Where-Object { -not $_.Enabled }).Count; if($off -eq 0){'Включён'}else{'Есть отключённые профили'} } catch {'Не прочитано'}");
+            result.DefenderStatus = MapDefenderStatus(ReadPowerShell("try { if((Get-MpComputerStatus).RealTimeProtectionEnabled){'ON'}else{'OFF'} } catch {'UNKNOWN'}"));
+            result.FirewallStatus = MapFirewallStatus(ReadPowerShell("try { $off=(Get-NetFirewallProfile | Where-Object { -not $_.Enabled }).Count; if($off -eq 0){'ON'}else{'PARTIAL'} } catch {'UNKNOWN'}"));
             result.SystemErrors7Days = ParseInt(ReadPowerShell("try { (Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=(Get-Date).AddDays(-7)} -ErrorAction SilentlyContinue | Measure-Object).Count } catch { 0 }"));
 
             BuildWarnings(result);
@@ -156,6 +156,26 @@ public static class AutopilotRunner
             return process.StandardOutput.ReadToEnd().Trim();
         }
         catch { return ""; }
+    }
+
+    private static string MapDefenderStatus(string value)
+    {
+        return value.Trim().ToUpperInvariant() switch
+        {
+            "ON" => "Включена",
+            "OFF" => "Выключена",
+            _ => "Не прочитано"
+        };
+    }
+
+    private static string MapFirewallStatus(string value)
+    {
+        return value.Trim().ToUpperInvariant() switch
+        {
+            "ON" => "Включён",
+            "PARTIAL" => "Есть отключённые профили",
+            _ => "Не прочитано"
+        };
     }
 
     private static int ParseInt(string value)
