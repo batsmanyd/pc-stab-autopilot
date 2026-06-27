@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml;
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
@@ -39,7 +38,11 @@ public static class AutopilotRunner
             ReadDriveC(result);
             result.TempBytes = GetFolderSizeSafe(Path.GetTempPath()) +
                                GetFolderSizeSafe(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp"));
-            result.SystemErrors7Days = CountSystemErrors7Days();
+
+            // MVP: event log parsing is disabled to avoid extra runtime packages.
+            // We will add System log reading after the Autopilot screen is stable.
+            result.SystemErrors7Days = 0;
+
             BuildWarnings(result);
             WriteReports(result);
 
@@ -85,18 +88,6 @@ public static class AutopilotRunner
         return total;
     }
 
-    private static int CountSystemErrors7Days()
-    {
-        try
-        {
-            using var log = new EventLog("System");
-            var start = DateTime.Now.AddDays(-7);
-            return log.Entries.Cast<EventLogEntry>()
-                .Count(e => e.TimeGenerated >= start && e.EntryType == EventLogEntryType.Error);
-        }
-        catch { return 0; }
-    }
-
     private static void BuildWarnings(AutopilotRunResult result)
     {
         if (result.DriveCFreeBytes > 0 && result.DriveCFreeBytes < 25L * 1024 * 1024 * 1024)
@@ -137,7 +128,7 @@ public static class AutopilotRunner
         Занято: {{result.DriveCUsedPercent}}%
 
         Временные файлы, расчёт: {{FormatBytes(result.TempBytes)}}
-        Ошибки System за 7 дней: {{result.SystemErrors7Days}}
+        Ошибки System за 7 дней: будет добавлено следующим шагом
 
         Предупреждения:
         {{warnings}}
