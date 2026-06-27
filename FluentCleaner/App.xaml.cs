@@ -24,8 +24,15 @@ public partial class App : Application
 
         // SilentRunner headless clean, no window; /SHUTDOWN shuts down after
         var cmdArgs = Environment.GetCommandLineArgs();
-        bool isAuto     = cmdArgs.Any(a => a.Equals("/AUTO",     StringComparison.OrdinalIgnoreCase));
-        bool isShutdown = cmdArgs.Any(a => a.Equals("/SHUTDOWN", StringComparison.OrdinalIgnoreCase));
+        bool isAuto      = cmdArgs.Any(a => a.Equals("/AUTO",      StringComparison.OrdinalIgnoreCase));
+        bool isAutopilot = cmdArgs.Any(a => a.Equals("/AUTOPILOT", StringComparison.OrdinalIgnoreCase));
+        bool isShutdown  = cmdArgs.Any(a => a.Equals("/SHUTDOWN",  StringComparison.OrdinalIgnoreCase));
+
+        if (isAutopilot)
+        {
+            _ = AutopilotRunner.RunAsync(exitAfterRun: true);
+            return;
+        }
 
         if (isAuto)
         {
