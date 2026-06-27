@@ -21,6 +21,9 @@ public sealed class AutopilotRunResult
     public long DriveCFreeBytes { get; set; }
     public double DriveCUsedPercent { get; set; }
     public long TempBytes { get; set; }
+    public long FreedBytes { get; set; }
+    public int RemovedFiles { get; set; }
+    public int RemoveErrors { get; set; }
     public string DefenderStatus { get; set; } = "Не прочитано";
     public string FirewallStatus { get; set; } = "Не прочитано";
     public int StartupCount { get; set; }
@@ -38,7 +41,7 @@ public static class AutopilotRunner
 
     public static string ReportsDirectory => Path.Combine(BaseDirectory, "Reports");
 
-    public static async Task<AutopilotRunResult> RunAsync(bool exitAfterRun = false)
+    public static async Task<AutopilotRunResult> RunAsync(bool exitAfterRun = false, bool safeClean = false)
     {
         Directory.CreateDirectory(ReportsDirectory);
         var result = new AutopilotRunResult();
@@ -47,15 +50,26 @@ public static class AutopilotRunner
         {
             ReadDriveC(result);
             ReadSystemInfo(result);
-            result.TempBytes = GetFolderSizeSafe(Path.GetTempPath()) +
-                               GetFolderSizeSafe(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp"));
+
+            var userTemp = Path.GetTempPath();
+            var windowsTemp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp");
+
+            result.TempBytes = GetFolderSizeSafe(userTemp) + GetFolderSizeSafe(windowsTemp);
+
+            if (safeClean)
+            {
+                CleanOldTempFiles(userTemp, AppSettings.Instance.SafeCleanOlderThanDays, result);
+                CleanOldTempFiles(windowsTemp, AppSettings.Instance.SafeCleanOlderThanDays, result);
+                result.TempBytes = GetFolderSizeSafe(userTemp) + GetFolderSizeSafe(windowsTemp);
+            }
+
             result.StartupCount = CountStartupItems();
             result.DefenderStatus = MapDefenderStatus(ReadPowerShell("try { if((Get-MpComputerStatus).RealTimeProtectionEnabled){'ON'}else{'OFF'} } catch {'UNKNOWN'}"));
             result.FirewallStatus = MapFirewallStatus(ReadPowerShell("try { $off=(Get-NetFirewallProfile | Where-Object { -not $_.Enabled }).Count; if($off -eq 0){'ON'}else{'PARTIAL'} } catch {'UNKNOWN'}"));
             result.SystemErrors7Days = ParseInt(ReadPowerShell("try { (Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=(Get-Date).AddDays(-7)} -ErrorAction SilentlyContinue | Measure-Object).Count } catch { 0 }"));
 
             BuildWarnings(result);
-            WriteReports(result);
+            WriteReports(result, safeClean);
 
             AppSettings.Instance.LastAutopilotRun = result.RunAt;
             AppSettings.Instance.LastAutopilotTempBytes = result.TempBytes;
@@ -110,6 +124,33 @@ public static class AutopilotRunner
         }
         catch { }
         return total;
+    }
+
+    private static void CleanOldTempFiles(string path, int olderThanDays, AutopilotRunResult result)
+    {
+        try
+        {
+            if (!Directory.Exists(path)) return;
+            var limit = DateTime.Now.AddDays(-Math.Max(1, olderThanDays));
+
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    var info = new FileInfo(file);
+                    if (!info.Exists || info.LastWriteTime >= limit) continue;
+                    var length = info.Length;
+                    info.Delete();
+                    result.FreedBytes += length;
+                    result.RemovedFiles++;
+                }
+                catch
+                {
+                    result.RemoveErrors++;
+                }
+            }
+        }
+        catch { }
     }
 
     private static int CountStartupItems()
@@ -204,7 +245,7 @@ public static class AutopilotRunner
             result.Warnings.Add("Критичных предупреждений нет");
     }
 
-    private static void WriteReports(AutopilotRunResult result)
+    private static void WriteReports(AutopilotRunResult result, bool safeClean)
     {
         var stamp = result.RunAt.ToString("yyyy-MM-dd_HH-mm-ss");
         result.TxtReportPath = Path.Combine(ReportsDirectory, $"pc-stab-autopilot-{stamp}.txt");
@@ -215,7 +256,7 @@ public static class AutopilotRunner
         PC Штаб Автопилот — отчёт
         Дата: {{result.RunAt:yyyy-MM-dd HH:mm:ss}}
 
-        Режим: автоматический контроль и отчёты.
+        Режим: {{(safeClean ? "проверка + безопасная очистка TEMP старше 7 дней" : "проверка и отчёт")}}
         Опасные действия отключены: реестр, службы, драйверы, программы и личные файлы не трогаются.
 
         ПК:
@@ -231,7 +272,10 @@ public static class AutopilotRunner
         Занято: {{result.DriveCUsedPercent}}%
 
         Обслуживание:
-        Временные файлы, расчёт: {{FormatBytes(result.TempBytes)}}
+        Временные файлы после проверки: {{FormatBytes(result.TempBytes)}}
+        Освобождено: {{FormatBytes(result.FreedBytes)}}
+        Удалено временных файлов: {{result.RemovedFiles}}
+        Ошибок очистки: {{result.RemoveErrors}}
         Автозагрузка: {{result.StartupCount}}
         Defender: {{result.DefenderStatus}}
         Firewall: {{result.FirewallStatus}}
