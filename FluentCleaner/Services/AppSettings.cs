@@ -7,10 +7,8 @@ public record CleanHistoryEntry(DateTime Date, long BytesFreed, int ItemsRemoved
 
 public class AppSettings
 {
-    // single shared instance, loaded from disk at startup
     public static AppSettings Instance { get; private set; } = Load();
 
-    // %AppData%\FluentCleaner\settings.json
     private static readonly string SettingsFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "FluentCleaner", "settings.json");
@@ -21,22 +19,17 @@ public class AppSettings
         WriteIndented = true
     };
 
-    // --- persisted settings -----------------------------------------------
-
     public string? CustomWinapp2Path { get; set; }
-    public string? Theme             { get; set; }
+    public string? Theme { get; set; } = "Dark";
     public HashSet<string> SelectedEntries { get; set; } = [];
 
-    // which built-in databases to load on startup
     public bool EnableWinapp2 { get; set; } = true;
     public bool EnableWinapp3 { get; set; } = false;
-    public bool EnableWinappx { get; set; } = true;   // AppX/bloatware database for terminal debloater
+    public bool EnableWinappx { get; set; } = false;
 
-    // post-clean commands;one per line; global on/off switch
-    public bool   PostCleanEnabled  { get; set; } = false;
+    public bool PostCleanEnabled { get; set; } = false;
     public string PostCleanCommands { get; set; } = "";
 
-    // Autopilot MVP settings
     public bool AutopilotEnabled { get; set; } = false;
     public string AutopilotMode { get; set; } = "Observe";
     public int AutopilotHour { get; set; } = 11;
@@ -48,35 +41,24 @@ public class AppSettings
     public long LastAutopilotTempBytes { get; set; }
     public int LastAutopilotWarnings { get; set; }
 
-    // backdrop style;terminal-only tweak, no Settings UI on purpose
     public string Backdrop { get; set; } = "mica";
 
-    // remembered window size;restored on next launch
-    public int WindowWidth  { get; set; } = 960;
-    public int WindowHeight { get; set; } = 620;
+    public int WindowWidth { get; set; } = 1100;
+    public int WindowHeight { get; set; } = 720;
 
-    //Junk growth tracker;logged after every successful clean run
     public bool CleanHistoryEnabled { get; set; } = true;
     public List<CleanHistoryEntry> CleanHistory { get; set; } = [];
 
-    // Groq API key for AI entry explanations; null = not configured
     public string? GroqApiKey { get; set; }
 
-    // true once the user dismisses the startup donation tip
-    public bool DonationDismissed { get; set; } = false;
+    public bool DonationDismissed { get; set; } = true;
 
-
-    // -----------------------------------------------------------------------
-
-    // true only when CustomWinapp2Path points to a file that actually exists
     [JsonIgnore]
     public bool HasCustomPath =>
         !string.IsNullOrWhiteSpace(CustomWinapp2Path) && File.Exists(CustomWinapp2Path);
 
-    // re-reads settings.json from disk and replaces the current instance;useful shit after external edits, called after the user saves changes in Settings
     public static void Reload() => Instance = Load();
 
-    // yields all active database paths in load order (built-ins first, custom last)
     public IEnumerable<string> ResolveDatabasePaths()
     {
         if (EnableWinapp2)
@@ -93,7 +75,6 @@ public class AppSettings
             yield return CustomWinapp2Path;
     }
 
-    // returns the custom path if set and valid, otherwise falls back to the bundled Winapp2.ini
     public string ResolveWinapp2Path()
     {
         if (!string.IsNullOrWhiteSpace(CustomWinapp2Path) && File.Exists(CustomWinapp2Path))
@@ -105,6 +86,7 @@ public class AppSettings
     {
         try
         {
+            DonationDismissed = true;
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsFile)!);
             File.WriteAllText(SettingsFile, JsonSerializer.Serialize(this, JsonOptions));
         }
@@ -115,15 +97,15 @@ public class AppSettings
     {
         try
         {
-            if (!File.Exists(SettingsFile)) return new();
+            if (!File.Exists(SettingsFile)) return new() { DonationDismissed = true };
             var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsFile), JsonOptions) ?? new();
             s.CustomWinapp2Path = NormalizePath(s.CustomWinapp2Path);
+            s.DonationDismissed = true;
             return s;
         }
-        catch { return new(); }  // corrupted file;just start fresh
+        catch { return new() { DonationDismissed = true }; }
     }
 
-    // strips quotes and expands %env% variables so paths from the JSON always work
     private static string? NormalizePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return null;
