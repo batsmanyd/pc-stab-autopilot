@@ -34,3 +34,14 @@ jobs:
 
       - name: Build
         run: dotnet build FluentCleaner/FluentCleaner.csproj --configuration Release --no-restore -p:Platform=${{ matrix.platform }}
+
+      - name: Publish portable Windows application
+        run: dotnet publish FluentCleaner/FluentCleaner.csproj --configuration Release --no-restore -p:Platform=${{ matrix.platform }} -p:PublishDir=${{ github.workspace }}/publish/${{ matrix.platform }}/
+
+      - name: Upload packaged application
+        uses: actions/upload-artifact@v4
+        with:
+          name: pc-stab-autopilot-${{ matrix.platform }}-${{ github.sha }}
+          path: publish/${{ matrix.platform }}/
+          if-no-files-found: error
+          retention-days: 30
