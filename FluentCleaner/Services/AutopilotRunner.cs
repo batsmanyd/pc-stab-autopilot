@@ -300,6 +300,7 @@ public static class AutopilotRunner
     {
         const string script = """
             $ErrorActionPreference = 'Stop'
+            [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
             try {
                 $now = Get-Date
                 $from = $now.AddDays(-7)
