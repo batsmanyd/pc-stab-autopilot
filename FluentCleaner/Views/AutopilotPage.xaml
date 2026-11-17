@@ -53,8 +53,16 @@
                 </Border>
             </Grid>
 
+            <Border Padding="18" CornerRadius="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="События Windows — источник, ID, время и приоритет" FontWeight="SemiBold" />
+                    <TextBlock Text="Приоритет основан на повторяемости и давности события; сам по себе не подтверждает неисправность." TextWrapping="Wrap" Opacity="0.7" />
+                    <TextBlock x:Name="EventDetailsText" Text="После диагностики здесь будут детали событий." TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
             <StackPanel Orientation="Horizontal" Spacing="12">
-                <Button x:Name="RunNowButton" Content="Проверить сейчас" Click="RunNow_Click" />
+                <Button x:Name="RunNowButton" Content="Проверить без очистки" Click="RunNow_Click" />
                 <Button x:Name="EnableButton" Content="Включить автопилот" Click="Enable_Click" />
                 <Button x:Name="DisableButton" Content="Выключить автопилот" Click="Disable_Click" />
                 <Button Content="Открыть отчёты" Click="OpenReports_Click" />
