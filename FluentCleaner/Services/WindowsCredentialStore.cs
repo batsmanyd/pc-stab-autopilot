@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Runtime.InteropServices;
-using System.Security;
 using System.Text;
 
 namespace FluentCleaner.Services;
@@ -108,7 +106,7 @@ internal static class WindowsCredentialStore
             Array.Clear(secretBytes);
             if (blobPointer != IntPtr.Zero)
             {
-                for (var i = 0; i < secret.Length * sizeof(char); i++) Marshal.WriteByte(blobPointer, i, 0);
+                for (var i = 0; i < secretBytes.Length; i++) Marshal.WriteByte(blobPointer, i, 0);
                 Marshal.FreeHGlobal(blobPointer);
             }
             if (targetPointer != IntPtr.Zero) Marshal.FreeHGlobal(targetPointer);
