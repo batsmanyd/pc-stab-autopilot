@@ -75,7 +75,8 @@ internal static class WindowsCredentialStore
     public static bool Write(string target, string secret)
     {
         var secretBytes = Encoding.UTF8.GetBytes(secret);
-        if (secretBytes.Length is 0 or > 5120)
+        var secretLength = secretBytes.Length;
+        if (secretLength is 0 or > 5120)
         {
             Array.Clear(secretBytes);
             throw new ArgumentOutOfRangeException(nameof(secret), "Credential must be between 1 and 5120 bytes.");
@@ -108,7 +109,7 @@ internal static class WindowsCredentialStore
             Array.Clear(secretBytes);
             if (blobPointer != IntPtr.Zero)
             {
-                for (var i = 0; i < secretBytes.Length; i++) Marshal.WriteByte(blobPointer, i, 0);
+                for (var i = 0; i < secretLength; i++) Marshal.WriteByte(blobPointer, i, 0);
                 Marshal.FreeHGlobal(blobPointer);
             }
             if (targetPointer != IntPtr.Zero) Marshal.FreeHGlobal(targetPointer);
