@@ -49,16 +49,27 @@ public class AppSettings
     public bool CleanHistoryEnabled { get; set; } = true;
     public List<CleanHistoryEntry> CleanHistory { get; set; } = [];
 
+    private string? _legacyGroqApiKey;
+
     [JsonIgnore]
     public string? GroqApiKey
     {
-        get => WindowsCredentialStore.Read("PCStabAutopilot/GroqApiKey");
+        get => WindowsCredentialStore.Read("PCStabAutopilot/GroqApiKey") ?? _legacyGroqApiKey;
         set
         {
             if (string.IsNullOrWhiteSpace(value))
+            {
                 WindowsCredentialStore.Delete("PCStabAutopilot/GroqApiKey");
+                _legacyGroqApiKey = null;
+            }
             else if (!WindowsCredentialStore.Write("PCStabAutopilot/GroqApiKey", value.Trim()))
+            {
                 throw new InvalidOperationException("Windows Credential Manager could not save the Groq API key.");
+            }
+            else
+            {
+                _legacyGroqApiKey = null;
+            }
         }
     }
 
@@ -66,12 +77,27 @@ public class AppSettings
     [JsonPropertyName("GroqApiKey")]
     public string? LegacyGroqApiKey
     {
-        get => null;
+        get => _legacyGroqApiKey;
         set
         {
             if (string.IsNullOrWhiteSpace(value)) return;
-            GroqApiKey = value;
-            _legacyGroqApiKeyMigrated = true;
+            try
+            {
+                if (WindowsCredentialStore.Write("PCStabAutopilot/GroqApiKey", value))
+                {
+                    _legacyGroqApiKey = null;
+                    _legacyGroqApiKeyMigrated = true;
+                }
+                else
+                {
+                    _legacyGroqApiKey = value;
+                }
+            }
+            catch
+            {
+                // Keep the legacy value in memory and in settings.json rather than losing the user's key.
+                _legacyGroqApiKey = value;
+            }
         }
     }
 
