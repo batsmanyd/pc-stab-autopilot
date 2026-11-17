@@ -95,9 +95,19 @@ public sealed partial class SettingsPage : Page, IPageActions
     // I Explanations API key save button;saves the trimmed key or null if the box is empty/whitespace
     private void ApiKeySave_Click(object sender, RoutedEventArgs e)
     {
-        AppSettings.Instance.GroqApiKey =
-            string.IsNullOrWhiteSpace(ApiKeyBox.Password) ? null : ApiKeyBox.Password.Trim();
-        AppSettings.Instance.Save();
+        try
+        {
+            AppSettings.Instance.GroqApiKey =
+                string.IsNullOrWhiteSpace(ApiKeyBox.Password) ? null : ApiKeyBox.Password.Trim();
+            AppSettings.Instance.Save();
+            lblApiTestResult.Text = "API key saved in Windows Credential Manager.";
+            lblApiTestResult.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            lblApiTestResult.Text = $"Could not save API key: {ex.Message}";
+            lblApiTestResult.Visibility = Visibility.Visible;
+        }
     }
 
     // quick sanity-check
