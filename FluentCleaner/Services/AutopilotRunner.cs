@@ -58,8 +58,12 @@ public static class AutopilotRunner
 
             if (safeClean)
             {
-                CleanOldTempFiles(userTemp, AppSettings.Instance.SafeCleanOlderThanDays, result);
-                CleanOldTempFiles(windowsTemp, AppSettings.Instance.SafeCleanOlderThanDays, result);
+                var settings = AppSettings.Instance;
+                var ageDays = Math.Clamp(settings.SafeCleanOlderThanDays, 1, 3650);
+                if (settings.SafeCleanUserTemp)
+                    CleanOldTempFiles(userTemp, ageDays, result);
+                if (settings.SafeCleanWindowsTemp)
+                    CleanOldTempFiles(windowsTemp, ageDays, result);
                 result.TempBytes = GetFolderSizeSafe(userTemp) + GetFolderSizeSafe(windowsTemp);
             }
 
@@ -116,7 +120,7 @@ public static class AutopilotRunner
         try
         {
             if (!Directory.Exists(path)) return 0;
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+            foreach (var file in EnumerateFilesWithoutReparsePoints(path))
             {
                 try { total += new FileInfo(file).Length; }
                 catch { }
@@ -126,6 +130,50 @@ public static class AutopilotRunner
         return total;
     }
 
+    private static IEnumerable<string> EnumerateFilesWithoutReparsePoints(string root)
+    {
+        var pending = new Stack<string>();
+        try
+        {
+            if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
+                yield break;
+            pending.Push(root);
+        }
+        catch
+        {
+            yield break;
+        }
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            string[] files;
+            string[] directories;
+            try { files = Directory.GetFiles(current); }
+            catch { files = []; }
+            try { directories = Directory.GetDirectories(current); }
+            catch { directories = []; }
+
+            foreach (var file in files)
+            {
+                var safe = false;
+                try { safe = (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0; }
+                catch { }
+                if (safe) yield return file;
+            }
+
+            foreach (var directory in directories)
+            {
+                try
+                {
+                    if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) == 0)
+                        pending.Push(directory);
+                }
+                catch { }
+            }
+        }
+    }
+
     private static void CleanOldTempFiles(string path, int olderThanDays, AutopilotRunResult result)
     {
         try
@@ -133,12 +181,14 @@ public static class AutopilotRunner
             if (!Directory.Exists(path)) return;
             var limit = DateTime.Now.AddDays(-Math.Max(1, olderThanDays));
 
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+            foreach (var file in EnumerateFilesWithoutReparsePoints(path))
             {
                 try
                 {
                     var info = new FileInfo(file);
                     if (!info.Exists || info.LastWriteTime >= limit) continue;
+                    var attributes = info.Attributes;
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
                     var length = info.Length;
                     info.Delete();
                     result.FreedBytes += length;
@@ -256,7 +306,7 @@ public static class AutopilotRunner
         PC Штаб Автопилот — отчёт
         Дата: {{result.RunAt:yyyy-MM-dd HH:mm:ss}}
 
-        Режим: {{(safeClean ? "проверка + безопасная очистка TEMP старше 7 дней" : "проверка и отчёт")}}
+        Режим: {{(safeClean ? $"проверка + безопасная очистка TEMP старше {Math.Clamp(AppSettings.Instance.SafeCleanOlderThanDays, 1, 3650)} дней (пользовательская TEMP: {(AppSettings.Instance.SafeCleanUserTemp ? "включена" : "выключена")}; Windows TEMP: {(AppSettings.Instance.SafeCleanWindowsTemp ? "включена" : "выключена")})" : "проверка и отчёт")}}
         Опасные действия отключены: реестр, службы, драйверы, программы и личные файлы не трогаются.
 
         ПК:
