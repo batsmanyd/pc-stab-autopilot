@@ -54,7 +54,8 @@ internal static class WindowsCredentialStore
             if (credential.CredentialBlob == IntPtr.Zero || credential.CredentialBlobSize == 0 || credential.CredentialBlobSize > 5120)
                 return null;
 
-            var bytes = new byte[credential.CredentialBlobSize];
+            var blobSize = checked((int)credential.CredentialBlobSize);
+            var bytes = new byte[blobSize];
             try
             {
                 Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
