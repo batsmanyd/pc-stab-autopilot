@@ -27,7 +27,7 @@ public partial class App : Application
 
         if (isAutopilot)
         {
-            _ = AutopilotRunner.RunAsync(exitAfterRun: true, safeClean: true);
+            _ = AutopilotRunner.RunAsync(exitAfterRun: true, safeClean: false);
             return;
         }
 
