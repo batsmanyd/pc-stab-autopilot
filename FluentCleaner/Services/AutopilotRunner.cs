@@ -130,18 +130,19 @@ public static class AutopilotRunner
         return total;
     }
 
-    private static IEnumerable<string> EnumerateFilesWithoutReparsePoints(string root)
+    private static IReadOnlyList<string> EnumerateFilesWithoutReparsePoints(string root)
     {
+        var filesFound = new List<string>();
         var pending = new Stack<string>();
         try
         {
             if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
-                yield break;
+                return filesFound;
             pending.Push(root);
         }
         catch
         {
-            yield break;
+            return filesFound;
         }
 
         while (pending.Count > 0)
@@ -156,10 +157,12 @@ public static class AutopilotRunner
 
             foreach (var file in files)
             {
-                var safe = false;
-                try { safe = (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0; }
+                try
+                {
+                    if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0)
+                        filesFound.Add(file);
+                }
                 catch { }
-                if (safe) yield return file;
             }
 
             foreach (var directory in directories)
@@ -172,6 +175,8 @@ public static class AutopilotRunner
                 catch { }
             }
         }
+
+        return filesFound;
     }
 
     private static void CleanOldTempFiles(string path, int olderThanDays, AutopilotRunResult result)
