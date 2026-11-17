@@ -72,7 +72,11 @@ public sealed partial class AutopilotPage : Page
             var ok = await AutopilotScheduler.EnableDailyAsync(AppSettings.Instance.AutopilotHour);
             AppSettings.Instance.AutopilotEnabled = ok;
             AppSettings.Instance.Save();
-            StatusText.Text = ok ? "Автопилот включён. Каждый день в 11:00 будет проверка и безопасное обслуживание." : "Не удалось включить автопилот.";
+            StatusText.Text = ok ? $"Автопилот включён. Ежедневная проверка запланирована на {Math.Clamp(AppSettings.Instance.AutopilotHour, 0, 23):00}:00." : "Не удалось включить автопилот. Проверьте права пользователя и Планировщик заданий Windows.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Ошибка включения автопилота: " + ex.Message;
         }
         finally
         {

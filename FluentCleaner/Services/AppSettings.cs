@@ -49,7 +49,60 @@ public class AppSettings
     public bool CleanHistoryEnabled { get; set; } = true;
     public List<CleanHistoryEntry> CleanHistory { get; set; } = [];
 
-    public string? GroqApiKey { get; set; }
+    private string? _legacyGroqApiKey;
+
+    [JsonIgnore]
+    public string? GroqApiKey
+    {
+        get => WindowsCredentialStore.Read("PCStabAutopilot/GroqApiKey") ?? _legacyGroqApiKey;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                WindowsCredentialStore.Delete("PCStabAutopilot/GroqApiKey");
+                _legacyGroqApiKey = null;
+            }
+            else if (!WindowsCredentialStore.Write("PCStabAutopilot/GroqApiKey", value.Trim()))
+            {
+                throw new InvalidOperationException("Windows Credential Manager could not save the Groq API key.");
+            }
+            else
+            {
+                _legacyGroqApiKey = null;
+            }
+        }
+    }
+
+    // One-time migration path for older settings.json files that stored the key in plaintext.
+    [JsonPropertyName("GroqApiKey")]
+    public string? LegacyGroqApiKey
+    {
+        get => _legacyGroqApiKey;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            try
+            {
+                if (WindowsCredentialStore.Write("PCStabAutopilot/GroqApiKey", value))
+                {
+                    _legacyGroqApiKey = null;
+                    _legacyGroqApiKeyMigrated = true;
+                }
+                else
+                {
+                    _legacyGroqApiKey = value;
+                }
+            }
+            catch
+            {
+                // Keep the legacy value in memory and in settings.json rather than losing the user's key.
+                _legacyGroqApiKey = value;
+            }
+        }
+    }
+
+    [JsonIgnore]
+    private bool _legacyGroqApiKeyMigrated;
 
     public bool DonationDismissed { get; set; } = true;
 
@@ -101,6 +154,8 @@ public class AppSettings
             var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsFile), JsonOptions) ?? new();
             s.CustomWinapp2Path = NormalizePath(s.CustomWinapp2Path);
             s.DonationDismissed = true;
+            if (s._legacyGroqApiKeyMigrated)
+                s.Save(); // Rewrites settings.json without the legacy plaintext API key.
             return s;
         }
         catch { return new() { DonationDismissed = true }; }

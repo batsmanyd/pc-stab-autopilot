@@ -40,7 +40,16 @@ public static class AutopilotScheduler
             });
 
             if (process is null) return false;
-            await process.WaitForExitAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                return false;
+            }
             return process.ExitCode == 0;
         }
         catch { return false; }
