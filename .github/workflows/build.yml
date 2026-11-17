@@ -36,7 +36,7 @@ jobs:
         run: dotnet build FluentCleaner/FluentCleaner.csproj --configuration Release --no-restore -p:Platform=${{ matrix.platform }}
 
       - name: Validate embedded PowerShell diagnostics syntax
-        shell: pwsh
+        shell: powershell
         run: |
           $source = Get-Content 'FluentCleaner/Services/AutopilotRunner.cs' -Raw
           $match = [regex]::Match($source, '(?s)const string script = """\r?\n(.*?)\r?\n\s*""";')
