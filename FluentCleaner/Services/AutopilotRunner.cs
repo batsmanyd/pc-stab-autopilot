@@ -7,6 +7,18 @@ using System.Text.Json;
 
 namespace FluentCleaner.Services;
 
+public sealed class SystemEventGroup
+{
+    public string Source { get; set; } = "";
+    public int EventId { get; set; }
+    public string Severity { get; set; } = "";
+    public int Count7Days { get; set; }
+    public int Count24Hours { get; set; }
+    public DateTime LastSeen { get; set; }
+    public string Priority { get; set; } = "";
+    public string LatestMessage { get; set; } = "";
+}
+
 public sealed class AutopilotRunResult
 {
     public DateTime RunAt { get; set; } = DateTime.Now;
@@ -28,6 +40,10 @@ public sealed class AutopilotRunResult
     public string FirewallStatus { get; set; } = "Не прочитано";
     public int StartupCount { get; set; }
     public int SystemErrors7Days { get; set; }
+    public int SystemErrors24Hours { get; set; }
+    public bool SystemEventsReadSuccessfully { get; set; }
+    public bool SystemEventsTruncated { get; set; }
+    public List<SystemEventGroup> SystemEventGroups { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
     public string TxtReportPath { get; set; } = "";
     public string JsonReportPath { get; set; } = "";
@@ -70,7 +86,7 @@ public static class AutopilotRunner
             result.StartupCount = CountStartupItems();
             result.DefenderStatus = MapDefenderStatus(ReadPowerShell("try { if((Get-MpComputerStatus).RealTimeProtectionEnabled){'ON'}else{'OFF'} } catch {'UNKNOWN'}"));
             result.FirewallStatus = MapFirewallStatus(ReadPowerShell("try { $off=(Get-NetFirewallProfile | Where-Object { -not $_.Enabled }).Count; if($off -eq 0){'ON'}else{'PARTIAL'} } catch {'UNKNOWN'}"));
-            result.SystemErrors7Days = ParseInt(ReadPowerShell("try { (Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=(Get-Date).AddDays(-7)} -ErrorAction SilentlyContinue | Measure-Object).Count } catch { 0 }"));
+            ReadSystemEventDetails(result);
 
             BuildWarnings(result);
             WriteReports(result, safeClean);
@@ -279,6 +295,110 @@ public static class AutopilotRunner
         return int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
     }
 
+    // Read-only Windows Event Log snapshot. The event count alone is NOT a health verdict.
+    private static void ReadSystemEventDetails(AutopilotRunResult result)
+    {
+        const string script = """
+            $ErrorActionPreference = 'Stop'
+            [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+            try {
+                $now = Get-Date
+                $from = $now.AddDays(-7)
+                $recent = $now.AddHours(-24)
+                $events = @(Get-WinEvent -FilterHashtable @{ LogName='System'; Level=1,2; StartTime=$from } -MaxEvents 2000 -ErrorAction Stop)
+                $groups = @($events | Group-Object ProviderName,Id,Level | ForEach-Object {
+                    $group = $_.Group
+                    $last = $group | Sort-Object TimeCreated -Descending | Select-Object -First 1
+                    $message = [string]$last.Message
+                    if ($message.Length -gt 350) { $message = $message.Substring(0,350) }
+                    [pscustomobject]@{
+                        source = [string]$last.ProviderName
+                        id = [int]$last.Id
+                        severity = [string]$last.LevelDisplayName
+                        count = [int]$group.Count
+                        recent = [int]@($group | Where-Object { $_.TimeCreated -ge $recent }).Count
+                        last = $last.TimeCreated.ToString('o')
+                        message = $message
+                    }
+                } | Sort-Object -Property @{Expression='recent';Descending=$true}, @{Expression='count';Descending=$true} | Select-Object -First 15)
+                [pscustomobject]@{ ok=$true; total=$events.Count; recent=[int]@($events | Where-Object { $_.TimeCreated -ge $recent }).Count; truncated=($events.Count -eq 2000); items=$groups } | ConvertTo-Json -Depth 5 -Compress
+            } catch {
+                [pscustomobject]@{ ok=$false; total=0; recent=0; truncated=$false; items=@() } | ConvertTo-Json -Depth 5 -Compress
+            }
+            """;
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -NonInteractive -EncodedCommand " +
+                            Convert.ToBase64String(Encoding.Unicode.GetBytes(script)),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                StandardOutputEncoding = Encoding.UTF8
+            });
+            if (process is null) return;
+
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            if (!process.WaitForExit(30000))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                return;
+            }
+
+            var output = outputTask.GetAwaiter().GetResult();
+            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output)) return;
+            using var document = JsonDocument.Parse(output);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True) return;
+
+            result.SystemEventsReadSuccessfully = true;
+            result.SystemErrors7Days = root.GetProperty("total").GetInt32();
+            result.SystemErrors24Hours = root.GetProperty("recent").GetInt32();
+            result.SystemEventsTruncated = root.GetProperty("truncated").GetBoolean();
+
+            foreach (var entry in root.GetProperty("items").EnumerateArray())
+            {
+                var source = entry.GetProperty("source").GetString() ?? "";
+                var id = entry.GetProperty("id").GetInt32();
+                var recently = entry.GetProperty("recent").GetInt32();
+                var lastText = entry.GetProperty("last").GetString();
+                _ = DateTime.TryParse(lastText, CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var lastSeen);
+
+                // This is a triage priority, not a diagnosis of a current hardware failure.
+                var hardwareSource = source.Contains("WHEA", StringComparison.OrdinalIgnoreCase) ||
+                    source.Equals("Disk", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("storport", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("stornvme", StringComparison.OrdinalIgnoreCase);
+                var noisyDcom = source.Contains("DistributedCOM", StringComparison.OrdinalIgnoreCase) &&
+                    (id == 10010 || id == 10016);
+                var priority = recently == 0 ? "История (не подтверждено сейчас)" :
+                    hardwareSource ? "Проверить в первую очередь" :
+                    noisyDcom ? "Низкий (DCOM)" : "Проверить при повторении";
+
+                result.SystemEventGroups.Add(new SystemEventGroup
+                {
+                    Source = source,
+                    EventId = id,
+                    Severity = entry.GetProperty("severity").GetString() ?? "",
+                    Count7Days = entry.GetProperty("count").GetInt32(),
+                    Count24Hours = recently,
+                    LastSeen = lastSeen,
+                    Priority = priority,
+                    LatestMessage = entry.GetProperty("message").GetString() ?? ""
+                });
+            }
+        }
+        catch
+        {
+            // Unknown must remain unknown: do not report a false zero when the log is inaccessible.
+            result.SystemEventsReadSuccessfully = false;
+        }
+    }
+
     private static void BuildWarnings(AutopilotRunResult result)
     {
         if (result.DriveCFreeBytes > 0 && result.DriveCFreeBytes < 25L * 1024 * 1024 * 1024)
@@ -290,8 +410,14 @@ public static class AutopilotRunner
         if (result.RamUsedPercent >= 85)
             result.Warnings.Add($"Высокая загрузка RAM: {result.RamUsedPercent}%");
 
-        if (result.SystemErrors7Days > 20)
-            result.Warnings.Add($"Много ошибок System за 7 дней: {result.SystemErrors7Days}");
+        if (!result.SystemEventsReadSuccessfully)
+            result.Warnings.Add("Журнал System не прочитан: статус ошибок неизвестен");
+        else if (result.SystemEventGroups.Any(g => g.Count24Hours > 0 && g.Priority == "Проверить в первую очередь"))
+            result.Warnings.Add("За последние 24 часа есть события оборудования или накопителя: см. подробный отчёт");
+        else if (result.SystemErrors24Hours > 0)
+            result.Warnings.Add($"Событий System за последние 24 часа: {result.SystemErrors24Hours} (это не диагноз)");
+        if (result.SystemEventsTruncated)
+            result.Warnings.Add("В журнале более 2000 событий за 7 дней; показана ограниченная выборка");
 
         if (result.DefenderStatus.Contains("Выключена", StringComparison.OrdinalIgnoreCase))
             result.Warnings.Add("Защита Windows Defender выключена");
@@ -307,6 +433,12 @@ public static class AutopilotRunner
         result.JsonReportPath = Path.Combine(ReportsDirectory, $"pc-stab-autopilot-{stamp}.json");
 
         var warnings = string.Join(Environment.NewLine, result.Warnings.Select(w => "- " + w));
+        var eventDetails = result.SystemEventsReadSuccessfully
+            ? string.Join(Environment.NewLine + Environment.NewLine, result.SystemEventGroups.Select(g =>
+                $"[{g.Priority}] {g.Source}, Event ID {g.EventId}, {g.Severity}; " +
+                $"за 7 дней: {g.Count7Days}, за 24 часа: {g.Count24Hours}; " +
+                $"последний: {g.LastSeen:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}{g.LatestMessage}"))
+            : "Не удалось прочитать журнал System. Нулевое количество ошибок не предполагается.";
         var text = $$"""
         PC Штаб Автопилот — отчёт
         Дата: {{result.RunAt:yyyy-MM-dd HH:mm:ss}}
@@ -334,7 +466,13 @@ public static class AutopilotRunner
         Автозагрузка: {{result.StartupCount}}
         Defender: {{result.DefenderStatus}}
         Firewall: {{result.FirewallStatus}}
-        Ошибки System за 7 дней: {{result.SystemErrors7Days}}
+        События System за 7 дней: {{(result.SystemEventsReadSuccessfully ? result.SystemErrors7Days.ToString() : "неизвестно")}}
+        События System за 24 часа: {{(result.SystemEventsReadSuccessfully ? result.SystemErrors24Hours.ToString() : "неизвестно")}}
+        Данные ограничены 2000 событиями: {{(result.SystemEventsTruncated ? "да" : "нет")}}
+        Приоритет событий — ориентир для диагностики, не подтверждение неисправности.
+
+        Детали событий System (источник, ID, даты и сообщения):
+        {{eventDetails}}
 
         Предупреждения:
         {{warnings}}
