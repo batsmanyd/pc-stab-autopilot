@@ -61,15 +61,15 @@ public sealed partial class AutopilotPage : Page
         TempText.Text = $"Осталось: {AutopilotRunner.FormatBytes(result.TempBytes)}\nОсвобождено: {AutopilotRunner.FormatBytes(result.FreedBytes)}\nФайлов: {result.RemovedFiles}";
         SecurityText.Text = $"Defender: {result.DefenderStatus}\nFirewall: {result.FirewallStatus}";
         ErrorsText.Text = result.SystemEventsReadSuccessfully
-            ? $"Автозагрузка: {result.StartupCount}\\nСобытий System за 24 часа: {result.SystemErrors24Hours}\\nЗа 7 дней: {result.SystemErrors7Days}"
-            : $"Автозагрузка: {result.StartupCount}\\nЖурнал System недоступен";
+            ? $"Автозагрузка: {result.StartupCount}\nСобытий System за 24 часа: {result.SystemErrors24Hours}\nЗа 7 дней: {result.SystemErrors7Days}"
+            : $"Автозагрузка: {result.StartupCount}\nЖурнал System недоступен";
         EventDetailsText.Text = result.SystemEventsReadSuccessfully
             ? (result.SystemEventGroups.Count == 0
                 ? "Нет ошибок и критических событий в доступной выборке."
-                : string.Join("\\n\\n", result.SystemEventGroups.Take(6).Select(g =>
+                : string.Join("\n\n", result.SystemEventGroups.Take(6).Select(g =>
                     $"{g.Priority}: {g.Source}, ID {g.EventId} — за 24 ч.: {g.Count24Hours}, за 7 д.: {g.Count7Days}, последнее: {g.LastSeen:dd.MM HH:mm}")) +
-                  (result.SystemEventsTruncated ? "\\nВыборка ограничена 2000 записями." : "") +
-                  "\\nПолные тексты и даты — в отчёте.")
+                  (result.SystemEventsTruncated ? "\nВыборка ограничена 2000 записями." : "") +
+                  "\nПолные тексты и даты — в отчёте.")
             : "Сведения недоступны. Проверь журнал событий Windows.";
         WarningsText.Text = string.Join(Environment.NewLine, result.Warnings);
     }
