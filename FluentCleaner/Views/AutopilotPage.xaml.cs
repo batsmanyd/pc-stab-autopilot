@@ -34,13 +34,13 @@ public sealed partial class AutopilotPage : Page
     private async void RunNow_Click(object sender, RoutedEventArgs e)
     {
         RunNowButton.IsEnabled = false;
-        StatusText.Text = "Проверяю ПК и выполняю безопасное обслуживание...";
+        StatusText.Text = "Проверяю ПК без удаления файлов...";
 
         try
         {
-            var result = await AutopilotRunner.RunAsync(safeClean: true);
+            var result = await AutopilotRunner.RunAsync(safeClean: false);
             ShowResult(result);
-            StatusText.Text = $"Готово. Освобождено: {AutopilotRunner.FormatBytes(result.FreedBytes)}. Отчёт создан.";
+            StatusText.Text = "Диагностика завершена. Файлы не удалялись. Отчёт создан.";
         }
         catch (Exception ex)
         {
@@ -60,7 +60,17 @@ public sealed partial class AutopilotPage : Page
         RamText.Text = $"Занято {result.RamUsedPercent}%\nСвободно {result.RamFreeGb} GB из {result.RamTotalGb} GB";
         TempText.Text = $"Осталось: {AutopilotRunner.FormatBytes(result.TempBytes)}\nОсвобождено: {AutopilotRunner.FormatBytes(result.FreedBytes)}\nФайлов: {result.RemovedFiles}";
         SecurityText.Text = $"Defender: {result.DefenderStatus}\nFirewall: {result.FirewallStatus}";
-        ErrorsText.Text = $"Автозагрузка: {result.StartupCount}\nОшибки System за 7 дней: {result.SystemErrors7Days}";
+        ErrorsText.Text = result.SystemEventsReadSuccessfully
+            ? $"Автозагрузка: {result.StartupCount}\\nСобытий System за 24 часа: {result.SystemErrors24Hours}\\nЗа 7 дней: {result.SystemErrors7Days}"
+            : $"Автозагрузка: {result.StartupCount}\\nЖурнал System недоступен";
+        EventDetailsText.Text = result.SystemEventsReadSuccessfully
+            ? (result.SystemEventGroups.Count == 0
+                ? "Нет ошибок и критических событий в доступной выборке."
+                : string.Join("\\n\\n", result.SystemEventGroups.Take(6).Select(g =>
+                    $"{g.Priority}: {g.Source}, ID {g.EventId} — за 24 ч.: {g.Count24Hours}, за 7 д.: {g.Count7Days}, последнее: {g.LastSeen:dd.MM HH:mm}")) +
+                  (result.SystemEventsTruncated ? "\\nВыборка ограничена 2000 записями." : "") +
+                  "\\nПолные тексты и даты — в отчёте.")
+            : "Сведения недоступны. Проверь журнал событий Windows.";
         WarningsText.Text = string.Join(Environment.NewLine, result.Warnings);
     }
 
